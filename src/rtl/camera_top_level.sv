@@ -27,22 +27,23 @@ module camera_top_level(
     
 
     
-    logic clk_25MHz, clk_125MHz, clk, clk_100MHz;
+    logic clk_24MHz, clk_25MHz, clk, clk_100MHz;
     logic locked;
+    logic [3:0] red, green, blue;
     logic [9:0] drawX, drawY;
     logic hsync, vsync, vde;
     logic reset_ah;
-   
+
     
     
         
     //clock wizard configured with a 1x and 5x clock for HDMI
     clk_wiz_0 clk_wiz (
-        .clk_out1(clk_25MHz),
-        .clk_out2(clk_125MHz),
+        .clk_out1(clk_24MHz),
+        .clk_out2(clk_25MHz),
         .reset(reset_ah),
         .locked(locked),
-        .clk_in1(Clk)
+        .clk_in1(clk_100Mhz)
     );
     
     //VGA Sync signal generator
