@@ -57,6 +57,12 @@ module sccb_control(
     logic [2:0] write_bit_counter, write_bit_counter_next;
     logic [1:0] write_phase_counter, write_phase_counter_next;
 
+
+    //CLOCK DIVISION
+    localparam int SCL_DIV = 67;                                
+    logic [$clog2(SCL_DIV)-1:0] scl_div_cnt;                    
+
+
     //PRESET ROM
     OV7670_config_rom camera_rom(
         .clk(clk),
@@ -84,8 +90,8 @@ module sccb_control(
         write_bit_counter_next = write_bit_counter;
         write_phase_counter_next = write_phase_counter;
 
-        scl = 1'bz;
-        sda_drive_low = 1'b0;
+//        scl = 1'bz;
+//        sda_drive_low = 1'b0;
 
         //STATE DESCRIPTIONS AND ACTIONS 
         unique case(curr_state)
@@ -111,6 +117,7 @@ module sccb_control(
                     end
                     2'd1:
                     begin
+//                        scl = 1'b0;
                         sda_drive_low = 1'b0;
                         write_phase_counter_next = write_phase_counter + 2'd1;
                     end
@@ -135,6 +142,7 @@ module sccb_control(
                     end
                     2'd1:
                     begin
+//                        scl = 1'b0;
                         case (write_byte_counter)
                             2'd0:
                                 sda_drive_low = ~addr_42[write_bit_counter];
@@ -160,7 +168,7 @@ module sccb_control(
             s_idle:
             begin
                 scl = 1'bz;
-                sda_drive_low = 1'bz;
+                sda_drive_low = 1'b1;
                 rom_addr_counter_next = 8'd0;
                 write_byte_counter_next = 2'd0;
                 write_bit_counter_next = 3'd7;
@@ -201,12 +209,18 @@ module sccb_control(
         write_byte_counter <= 2'd0;
         write_bit_counter <= 3'd7;
         write_phase_counter <= 2'd0;
+        scl_div_cnt <= '0;
         end else begin
+        if (scl_div_cnt == SCL_DIV-1) begin   
+        scl_div_cnt <= '0;        
         curr_state <= next_state;
         rom_addr_counter <= rom_addr_counter_next;
         write_byte_counter <= write_byte_counter_next;
         write_bit_counter <= write_bit_counter_next;
         write_phase_counter <= write_phase_counter_next;
+        end else begin
+            scl_div_cnt  <= scl_div_cnt + 1'b1;
+        end
         end
     end
 
