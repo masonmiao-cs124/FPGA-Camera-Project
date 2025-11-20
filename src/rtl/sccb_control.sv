@@ -124,6 +124,7 @@ module sccb_control(
                     2'd2:
                     begin
                         scl = 1'bz;
+                        sda_drive_low = 1'b1;
                         write_phase_counter_next = 2'b0;
                         write_bit_counter_next = 3'd7;
                         write_byte_counter_next = write_byte_counter + 2'd1;
