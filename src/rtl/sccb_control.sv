@@ -118,29 +118,39 @@ module sccb_control(
             end
             s_ack:
             begin
-                case(write_phase_counter)
+                case (write_phase_counter)
                     2'd0:
                     begin
                         scl = 1'b0;
-                        sda_drive_low = 1'b1;
-                        write_phase_counter_next = write_phase_counter + 2'd1;
+                        sda_drive_low = 1'b1;  
+                        write_phase_counter_next = 2'd1;
                     end
                     2'd1:
                     begin
-//                        scl = 1'bz;
-                        sda_drive_low = 1'b0;
-                        write_phase_counter_next = write_phase_counter + 2'd1;
+                        sda_drive_low = 1'b0;      
+                        write_phase_counter_next = 2'd2;
                     end
                     2'd2:
                     begin
+                        if (write_byte_counter != 2'd2) begin
+                            scl = 1'bz;
+                            write_phase_counter_next = 2'd0;
+                            write_bit_counter_next = 3'd7;
+                            write_byte_counter_next = write_byte_counter + 2'd1;
+                        end else begin
+                            sda_drive_low = 1'b1;
+                            write_phase_counter_next = 2'd3;
+                        end
+                    end
+                    2'd3:
+                    begin
                         scl = 1'bz;
-                        //sda_drive_low = 1'b1;
-                        write_phase_counter_next = 2'b0;
+                        sda_drive_low = 1'b1;
+                        write_phase_counter_next = 2'd0;
                         write_bit_counter_next = 3'd7;
-                        write_byte_counter_next = write_byte_counter + 2'd1;
                     end
                     default:
-                        scl = 1'bz;
+                        write_phase_counter_next = 2'd0;
                 endcase
             end
             s_write:
@@ -198,7 +208,7 @@ module sccb_control(
                 next_state = (write_bit_counter == 3'd0 && write_phase_counter == 2'd2) ? s_ack : s_write;
             s_ack:
             begin
-               if (write_byte_counter == 2'd2 && write_phase_counter == 2'd2 ) begin
+               if (write_byte_counter == 2'd2 && write_phase_counter == 2'd3 ) begin
                 next_state = s_stop;
                end else if (write_byte_counter != 2'd2 && write_phase_counter == 2'd2 ) begin
                 next_state = s_write;
