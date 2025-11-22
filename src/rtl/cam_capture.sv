@@ -102,7 +102,7 @@ module cam_capture(
             s_end_row:
                 next_state = (href) ? s_write : s_idle;
             s_end_frame:
-                next_state = (href) ? s_write : s_idle;
+                next_state = (vsync) ? s_idle : s_write;
         endcase
     end
 
