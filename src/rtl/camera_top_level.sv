@@ -59,7 +59,7 @@ module camera_top_level(
     logic config_done;
     logic start_fsm_debounced, reset_debounced;
     logic [3:0] doutb;
-    logic [3:0] addra;
+    logic [3:0] dina;
 
     assign pwdn = 1'b0;
     assign cam_pixel_idx = y_coord * 640 + x_coord;
@@ -123,7 +123,7 @@ module camera_top_level(
     );
     
     blk_mem_gen_0 bram(
-        .clka(vga_clk), //CAMERA  pclk
+        .clka(pclk), //CAMERA  pclk
         .addra(cam_pixel_idx),
         .dina(dina), //dina
         .ena(1'b1),

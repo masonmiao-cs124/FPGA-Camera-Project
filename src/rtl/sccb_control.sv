@@ -58,7 +58,7 @@ module sccb_control(
     logic [2:0] write_bit_counter, write_bit_counter_next;
     logic [1:0] write_phase_counter, write_phase_counter_next;
 
-    logic hi_z;
+    logic hi_z, hi_z_next, scl_next, sda_drive_low_next;
 
     //CLOCK DIVISION
     localparam int SCL_DIV = 67;                                
@@ -80,22 +80,12 @@ module sccb_control(
     //wire  sda_in;           
     
 
-    assign sda = (hi_z) ?
-        (sda_drive_low ? 1'b0 : 1'bz) :   // during ack or idle
-        (sda_drive_low ? 1'b0 : 1'b1);  // CHATGPT wrote this logic for us
-
-    // assign sda = sda_drive_low ? 1'b0 : 1'bz; 
-//     // assign sda_in = sda;                         
-
+    assign sda = (hi_z) ? (sda_drive_low ? 1'b0 : 1'bz) : (sda_drive_low ? 1'b0 : 1'b1); 
     
-    
-    
-    
-    
-        always_comb
+    always_comb
     begin
 
-        next_state = s_idle;
+        next_state = curr_state;
         
         //INITIALIZE COUNTERS
         rom_addr_counter_next = rom_addr_counter;
@@ -106,46 +96,47 @@ module sccb_control(
         
         
 
-//        scl = 1'bz;
-//        sda_drive_low = 1'b0;
+        scl_next = scl;
+        sda_drive_low_next = sda_drive_low;
+        hi_z_next = hi_z;
 
         //STATE DESCRIPTIONS AND ACTIONS 
         unique case(curr_state)
             s_start:
             begin
-                scl = 1'b1;
-                sda_drive_low = 1'b1;
-                hi_z = 1'b0;
+                scl_next = 1'b1;
+                sda_drive_low_next = 1'b1;
+                hi_z_next = 1'b0;
             end
             s_stop:
             begin
                 case (write_phase_counter) 
                 2'd0:
                 begin
-                    scl = 1'b0;
-                    sda_drive_low = 1'b0;
-                    hi_z = 1'b1;
+                    scl_next = 1'b0;
+                    sda_drive_low_next = 1'b0;
+                    hi_z_next = 1'b1;
                     write_phase_counter_next = 2'd1;
                 end
                 2'd1:
                 begin
-                    scl = 1'b0;
-                    sda_drive_low = 1'b1;
-                    hi_z = 1'b0;
+                    scl_next = 1'b0;
+                    sda_drive_low_next = 1'b1;
+                    hi_z_next = 1'b0;
                     write_phase_counter_next = 2'd2;
                 end
                 2'd2:
                 begin
-                    scl = 1'b1;
-                    sda_drive_low = 1'b1;
-                    hi_z = 1'b0;
+                    scl_next = 1'b1;
+                    sda_drive_low_next = 1'b1;
+                    hi_z_next = 1'b0;
                     write_phase_counter_next = 2'd3;
                 end
                 2'd3:
                 begin
-                    scl = 1'b1;
-                    sda_drive_low = 1'b0;
-                    hi_z = 1'b0;
+                    scl_next = 1'b1;
+                    sda_drive_low_next = 1'b0;
+                    hi_z_next = 1'b0;
                     rom_addr_counter_next = rom_addr_counter + 8'd1;
                     write_phase_counter_next = 2'd0;
                 end
@@ -156,21 +147,21 @@ module sccb_control(
                 case (write_phase_counter)
                     2'd0:
                     begin
-                        scl = 1'b0;
-                        sda_drive_low = 1'b1;  
-                        hi_z = 1'b1;
+                        scl_next = 1'b0;
+                        sda_drive_low_next = 1'b1;  
+                        hi_z_next = 1'b1;
                         write_phase_counter_next = 2'd1;
                     end
                     2'd1:
                     begin
-                        sda_drive_low = 1'b0;      
-                        hi_z = 1'b1;
+                        sda_drive_low_next = 1'b0;      
+                        hi_z_next = 1'b1;
                         write_phase_counter_next = 2'd2;
                     end
                     2'd2:
                     begin
-                        scl = 1'b1;
-                        hi_z = 1'b1;
+                        scl_next = 1'b1;
+                        hi_z_next = 1'b1;
                         write_phase_counter_next = 2'd0;
                         write_bit_counter_next = 3'd7;
                         write_byte_counter_next = write_byte_counter + 2'd1;
@@ -184,60 +175,51 @@ module sccb_control(
                 case(write_phase_counter)
                     2'd0:
                     begin
-                        if (write_bit_counter == 3'b111) begin
-                        hi_z = 1'b1;
-                        end
-                        else begin
-                        hi_z = 1'b0;
-                        end
-                        scl = 1'b0;
+                        hi_z_next = (write_bit_counter == 3'b111) ? 1'b1 : 1'b0;
+                        scl_next = 1'b0;
                         write_phase_counter_next = write_phase_counter + 2'd1;
                     end
                     2'd1:
                     begin
-//                        scl = 1'b0;
+                        hi_z_next = 1'b0;
                         case (write_byte_counter)
                             2'd0: begin
-                                sda_drive_low = ~addr_42[write_bit_counter];
-                                hi_z = 1'b0;
+                                sda_drive_low_next = ~addr_42[write_bit_counter];
                             end
                             2'd1: begin
-                                sda_drive_low = ~reg_addr[write_bit_counter];
-                                hi_z = 1'b0;
+                                sda_drive_low_next = ~reg_addr[write_bit_counter];                              
                             end
                             2'd2: begin
-                                sda_drive_low = ~reg_data[write_bit_counter];
-                                hi_z = 1'b0;
+                                sda_drive_low_next = ~reg_data[write_bit_counter];                             
                             end
                             default: begin
-                                sda_drive_low = ~addr_42[write_bit_counter];
-                                hi_z = 1'b0;
+                                sda_drive_low_next = ~addr_42[write_bit_counter];                       
                             end
                         endcase
                         write_phase_counter_next = write_phase_counter + 2'd1;
                     end
                     2'd2:
                     begin
-                        scl = 1'b1;
-                        hi_z = 1'b0;
+                        scl_next = 1'b1;
+                        hi_z_next = 1'b0;
                         write_phase_counter_next = 2'b0;
                         write_bit_counter_next = write_bit_counter - 3'd1;
                     end
                     default: begin
-                        scl = 1'b1;
-                        hi_z = 1'b0;
+                        scl_next  = 1'b1;
+                        hi_z_next  = 1'b0;
                     end
                 endcase
             end
             s_idle:
             begin
-                scl = 1'b1;
-                sda_drive_low = 1'b0; // changed to make this hiZ, for tb
+                scl_next = 1'b1;
+                sda_drive_low_next = 1'b0; // changed to make this hiZ, for tb
                 rom_addr_counter_next = 8'd0;
                 write_byte_counter_next = 2'd0;
                 write_bit_counter_next = 3'd7;
                 write_phase_counter_next = 2'd0;
-                hi_z = 1'b0;
+                hi_z_next = 1'b0;
               
             end        
         endcase
@@ -288,6 +270,9 @@ module sccb_control(
         write_phase_counter <= 2'd0;
         scl_div_cnt <= '0;
         write_flag <= 1'b0;
+        sda_drive_low <= 1'b0;
+        hi_z <= 1'b0;
+        scl <= 1'b1;
         
         
         end else begin
@@ -297,10 +282,11 @@ module sccb_control(
         rom_addr_counter <= rom_addr_counter_next;
         write_byte_counter <= write_byte_counter_next;
         write_bit_counter <= write_bit_counter_next;
-        write_phase_counter <= write_phase_counter_next;
-        
+        write_phase_counter <= write_phase_counter_next; 
 
-        
+        sda_drive_low <= sda_drive_low_next;
+        hi_z <= hi_z_next;
+        scl <= scl_next;
         end else begin
             scl_div_cnt  <= scl_div_cnt + 1'b1;
         end
