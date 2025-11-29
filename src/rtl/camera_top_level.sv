@@ -27,17 +27,15 @@ module camera_top_level(
         input reset,
         input cam_href,
         input cam_vsync,
-        input pwdn,
         input [7:0] cam_data,
-
         input start_fsm,
-        
+        input pwdn,
 
         //CAMERA OUTPUTS
         inout sda,
         output xclk,
         output scl,
-
+        
 
         //HDMI
         output logic hdmi_tmds_clk_n,
@@ -49,7 +47,7 @@ module camera_top_level(
     
     
 
-    
+   
     logic vga_clk, clk_125MHz;
     logic locked;
     logic [9:0] drawX, drawY, x_coord, y_coord;
@@ -57,28 +55,28 @@ module camera_top_level(
     logic [7:0] pixel_data;
     logic hsync, vsync, vde;
     logic config_done;
-    logic start_fsm_debounced, reset_debounced;
+//    logic start_fsm_debounced, reset_debounced;
     logic [3:0] doutb;
     logic [3:0] dina;
 
     assign pwdn = 1'b0;
     assign cam_pixel_idx = y_coord * 640 + x_coord;
     assign vga_pixel_idx = drawY * 640 + drawX;
-    assign dina = cam_href ? pixel_data[7:4] : 4'b0;
+    assign dina = cam_href ? pixel_data[7:4] : 4'b0000;
 
-    sync_debounce button_sync [1:0] (
-		.Clk  (clk),
+//    sync_debounce button_sync [1:0] (
+//		.Clk  (clk),
 
-		.d    ({start_fsm, reset}),
-		.q    ({start_fsm_debounced, reset_debounced})
-	);
+//		.d    ({start_fsm, reset}),
+//		.q    ({start_fsm_debounced, reset_debounced})
+//	);
     
     //clock wizard configured with a 1x and 5x clock for HDMI
     clk_wiz_0 clk_wiz (
         .clk_out1(xclk),
         .clk_out2(vga_clk),
         .clk_out3(clk_125MHz),
-        .reset(reset_debounced),
+        .reset(reset),
         .locked(locked),
         .clk_in1(clk)
     );
@@ -86,7 +84,7 @@ module camera_top_level(
     //VGA Sync signal generator
     vga_controller vga (
         .pixel_clk(vga_clk),
-        .reset(reset_debounced),
+        .reset(reset),
         .hs(hsync),
         .vs(vsync),
         .active_nblank(vde),
@@ -100,7 +98,7 @@ module camera_top_level(
         .pix_clk(vga_clk),
         .pix_clkx5(clk_125MHz),
         .pix_clk_locked(locked),
-        .rst(reset_debounced),
+        .rst(reset),
         //Color and Sync Signals
         .red(doutb),
         .green(doutb),
@@ -127,7 +125,7 @@ module camera_top_level(
         .addra(cam_pixel_idx),
         .dina(dina), //dina
         .ena(1'b1),
-        .wea(cam_href & config_done),     //cam_href & config_done
+        .wea(config_done & cam_href),     //cam_href & config_done
         
         .clkb(vga_clk), //VGA
         .addrb(vga_pixel_idx),
@@ -137,8 +135,8 @@ module camera_top_level(
     
     sccb_control control_unit (
         .xclk(xclk),
-        .start_fsm(start_fsm_debounced),
-        .reset(reset_debounced),
+        .start_fsm(start_fsm),
+        .reset(reset),
         .sda(sda),
         .scl(scl),
         .write_flag(config_done)
@@ -150,7 +148,7 @@ module camera_top_level(
         .vsync(cam_vsync),
         .cam_data(cam_data),
         .config_done(config_done),
-        .reset(reset_debounced),
+        .reset(reset),
 
         .x_coord(x_coord),
         .y_coord(y_coord),

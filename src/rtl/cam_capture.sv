@@ -47,6 +47,8 @@ module cam_capture(
     logic [9:0] y_coord_next;
     logic write_counter, write_counter_next;
     logic [7:0] pixel_data_next;
+    
+    logic config_done_next;
 
     always_comb
         begin
@@ -67,11 +69,11 @@ module cam_capture(
                     begin
                         pixel_data_next = cam_data;
                         write_counter_next = 1'b1;
+                        x_coord_next = x_coord + 10'd1;
                     end
                 1'b1:
                     begin
                         write_counter_next = 1'b0;
-                        x_coord_next = x_coord + 10'd1;
                     end
                 endcase
             s_end_row:

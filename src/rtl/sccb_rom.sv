@@ -35,7 +35,7 @@ module OV7670_config_rom(
     4:  dout <= 16'h0C_00; // COM3,     default settings
     5:  dout <= 16'h3E_00; // COM14,    no scaling, normal pclock
     6:  dout <= 16'h04_00; // COM1,     disable CCIR656
-    7:  dout <= 16'h40_d0; //COM15,     RGB565, full output range
+    7:  dout <= 16'h40_00; //COM15,     RGB565, full output range       //CHANGED
     8:  dout <= 16'h3a_04; //TSLB       set correct output data sequence (magic)
     9:  dout <= 16'h14_18; //COM9       MAX AGC value x4
     10: dout <= 16'h4F_B3; //MTX1       all of these are magical matrix coefficients
