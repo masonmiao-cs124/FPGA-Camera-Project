@@ -31,6 +31,11 @@ module camera_top_level(
         input start_fsm,
         input pwdn,
         
+        
+        input logic toggle_edge,
+        input logic toggle_skin,
+        input  logic [15:0] sw_i,
+        
 
         //CAMERA OUTPUTS
         inout sda,
@@ -56,10 +61,10 @@ module camera_top_level(
    
     logic vga_clk, clk_125MHz;
     logic locked;
-    logic [9:0] drawX, drawY, x_coord, y_coord;
+    logic [9:0] drawX, drawY, x_coord, y_coord, x_coord_UV, y_coord_UV;
     logic [18:0] cam_pixel_idx, vga_pixel_idx;
     logic [7:0] pixel_data;
-    logic pixel_valid;
+    logic pixel_valid, pixel_valid_UV;
     logic hsync, vsync, vde;
     logic config_done;
 //    logic start_fsm_debounced, reset_debounced;
@@ -67,12 +72,47 @@ module camera_top_level(
     logic [6:0] dina;
     logic [9:0] max_x, max_y, min_x, min_y;
     logic [9:0] max_x_new, max_y_new, min_x_new, min_y_new;
-    logic endframe;
+    
+    // NEW 12-region signals from cam_capture_UV (min/max x/y)
+    logic [9:0] min_x_x0_y0, min_x_x1_y0, min_x_x2_y0, min_x_x3_y0;
+    logic [9:0] min_x_x0_y1, min_x_x1_y1, min_x_x2_y1, min_x_x3_y1;
+    logic [9:0] min_x_x0_y2, min_x_x1_y2, min_x_x2_y2, min_x_x3_y2;
+
+    logic [9:0] max_x_x0_y0, max_x_x1_y0, max_x_x2_y0, max_x_x3_y0;
+    logic [9:0] max_x_x0_y1, max_x_x1_y1, max_x_x2_y1, max_x_x3_y1;
+    logic [9:0] max_x_x0_y2, max_x_x1_y2, max_x_x2_y2, max_x_x3_y2;
+
+    logic [9:0] min_y_x0_y0, min_y_x1_y0, min_y_x2_y0, min_y_x3_y0;
+    logic [9:0] min_y_x0_y1, min_y_x1_y1, min_y_x2_y1, min_y_x3_y1;
+    logic [9:0] min_y_x0_y2, min_y_x1_y2, min_y_x2_y2, min_y_x3_y2;
+
+    logic [9:0] max_y_x0_y0, max_y_x1_y0, max_y_x2_y0, max_y_x3_y0;
+    logic [9:0] max_y_x0_y1, max_y_x1_y1, max_y_x2_y1, max_y_x3_y1;
+    logic [9:0] max_y_x0_y2, max_y_x1_y2, max_y_x2_y2, max_y_x3_y2;
+
+    // NEW sampled (clk-domain) per-region signals
+    logic [9:0] sampled_min_x_x0_y0, sampled_min_x_x1_y0, sampled_min_x_x2_y0, sampled_min_x_x3_y0;
+    logic [9:0] sampled_min_x_x0_y1, sampled_min_x_x1_y1, sampled_min_x_x2_y1, sampled_min_x_x3_y1;
+    logic [9:0] sampled_min_x_x0_y2, sampled_min_x_x1_y2, sampled_min_x_x2_y2, sampled_min_x_x3_y2;
+
+    logic [9:0] sampled_max_x_x0_y0, sampled_max_x_x1_y0, sampled_max_x_x2_y0, sampled_max_x_x3_y0;
+    logic [9:0] sampled_max_x_x0_y1, sampled_max_x_x1_y1, sampled_max_x_x2_y1, sampled_max_x_x3_y1;
+    logic [9:0] sampled_max_x_x0_y2, sampled_max_x_x1_y2, sampled_max_x_x2_y2, sampled_max_x_x3_y2;
+
+    logic [9:0] sampled_min_y_x0_y0, sampled_min_y_x1_y0, sampled_min_y_x2_y0, sampled_min_y_x3_y0;
+    logic [9:0] sampled_min_y_x0_y1, sampled_min_y_x1_y1, sampled_min_y_x2_y1, sampled_min_y_x3_y1;
+    logic [9:0] sampled_min_y_x0_y2, sampled_min_y_x1_y2, sampled_min_y_x2_y2, sampled_min_y_x3_y2;
+
+    logic [9:0] sampled_max_y_x0_y0, sampled_max_y_x1_y0, sampled_max_y_x2_y0, sampled_max_y_x3_y0;
+    logic [9:0] sampled_max_y_x0_y1, sampled_max_y_x1_y1, sampled_max_y_x2_y1, sampled_max_y_x3_y1;
+    logic [9:0] sampled_max_y_x0_y2, sampled_max_y_x1_y2, sampled_max_y_x2_y2, sampled_max_y_x3_y2;
 
     assign pwdn = 1'b0;
-    assign cam_pixel_idx = y_coord * 640 + x_coord;
+    assign cam_pixel_idx = toggle_edge ? (y_coord_UV*640 + x_coord_UV):(y_coord * 640 + x_coord);
     assign vga_pixel_idx = drawY * 640 + drawX;
-    assign dina = pixel_data[7:1];
+    //assign dina = pixel_data[7:1];
+    assign dina = toggle_edge ? ((toggle_skin ? skin_valid_2:skin_valid) ? 7'h0: 7'h3F) : pixel_data[7:1]; 
+    //assign dina = (skin_valid) ? 7'h3F: 7'b0;
     
 //    assign min_x_new = 10'd641;
 //    assign max_x_new = 10'd480;
@@ -80,7 +120,6 @@ module camera_top_level(
 //    assign max_y_new = 10'd0;
     
     logic [6:0] red_block, dout_red;
-    logic frame_ack_pclk;
     
     
         
@@ -137,7 +176,7 @@ module camera_top_level(
         .addra(cam_pixel_idx),
         .dina(dina), //dina
         .ena(1'b1),
-        .wea(pixel_valid),     //cam_href & config_done
+        .wea(toggle_edge ? pixel_valid_UV: pixel_valid),     //cam_href & config_done
         
         .clkb(vga_clk), //VGA
         .addrb(vga_pixel_idx),
@@ -169,6 +208,7 @@ module camera_top_level(
         .pixel_valid(pixel_valid)
     );
 
+    // updated instantiation - wire up all 12 region ports
     cam_capture_UV find_x_y(
         .pclk(pclk),
         .href(cam_href),
@@ -176,102 +216,479 @@ module camera_top_level(
         .cam_data(cam_data),
         .config_done(config_done),
         .reset(reset),
-        .frame_ack_pclk(frame_ack_pclk),
         
-        .min_x(min_x),
-        .max_x(max_x),
-        .min_y(min_y),
-        .max_y(max_y),
-        .endframe(endframe)
+        .u(sw_i[15:8]),
+        .v(sw_i[7:0]),
         
+        .min_x_x0_y0(min_x_x0_y0),
+        .min_x_x1_y0(min_x_x1_y0),
+        .min_x_x2_y0(min_x_x2_y0),
+        .min_x_x3_y0(min_x_x3_y0),
+
+        .min_x_x0_y1(min_x_x0_y1),
+        .min_x_x1_y1(min_x_x1_y1),
+        .min_x_x2_y1(min_x_x2_y1),
+        .min_x_x3_y1(min_x_x3_y1),
+
+        .min_x_x0_y2(min_x_x0_y2),
+        .min_x_x1_y2(min_x_x1_y2),
+        .min_x_x2_y2(min_x_x2_y2),
+        .min_x_x3_y2(min_x_x3_y2),
+
+        .max_x_x0_y0(max_x_x0_y0),
+        .max_x_x1_y0(max_x_x1_y0),
+        .max_x_x2_y0(max_x_x2_y0),
+        .max_x_x3_y0(max_x_x3_y0),
+
+        .max_x_x0_y1(max_x_x0_y1),
+        .max_x_x1_y1(max_x_x1_y1),
+        .max_x_x2_y1(max_x_x2_y1),
+        .max_x_x3_y1(max_x_x3_y1),
+
+        .max_x_x0_y2(max_x_x0_y2),
+        .max_x_x1_y2(max_x_x1_y2),
+        .max_x_x2_y2(max_x_x2_y2),
+        .max_x_x3_y2(max_x_x3_y2),
+
+        .min_y_x0_y0(min_y_x0_y0),
+        .min_y_x1_y0(min_y_x1_y0),
+        .min_y_x2_y0(min_y_x2_y0),
+        .min_y_x3_y0(min_y_x3_y0),
+
+        .min_y_x0_y1(min_y_x0_y1),
+        .min_y_x1_y1(min_y_x1_y1),
+        .min_y_x2_y1(min_y_x2_y1),
+        .min_y_x3_y1(min_y_x3_y1),
+
+        .min_y_x0_y2(min_y_x0_y2),
+        .min_y_x1_y2(min_y_x1_y2),
+        .min_y_x2_y2(min_y_x2_y2),
+        .min_y_x3_y2(min_y_x3_y2),
+
+        .max_y_x0_y0(max_y_x0_y0),
+        .max_y_x1_y0(max_y_x1_y0),
+        .max_y_x2_y0(max_y_x2_y0),
+        .max_y_x3_y0(max_y_x3_y0),
+
+        .max_y_x0_y1(max_y_x0_y1),
+        .max_y_x1_y1(max_y_x1_y1),
+        .max_y_x2_y1(max_y_x2_y1),
+        .max_y_x3_y1(max_y_x3_y1),
+
+        .max_y_x0_y2(max_y_x0_y2),
+        .max_y_x1_y2(max_y_x1_y2),
+        .max_y_x2_y2(max_y_x2_y2),
+        .max_y_x3_y2(max_y_x3_y2),
+        
+        .x_coord(x_coord_UV),
+        .y_coord(y_coord_UV),
+        .skin_valid(skin_valid),
+        .skin_valid_2(skin_valid_2),
+        .pixel_valid(pixel_valid_UV)
     );
     
     
-    logic endframe_pclk;            // alias: endframe from cam_capture_UV (pclk domain)
-    logic endframe_sync0, endframe_sync1; // two-flop sync into clk domain
-    logic endframe_sync_prev;
-    logic frame_ack_clk;            // single-cycle ack in clk domain
-    logic frame_ack_pclk_sync0, frame_ack_pclk; // clk->pclk synchronization
-    
-    // sampled (clk-domain) copies of pclk min/max
+   
     logic [9:0] sampled_min_x, sampled_min_y, sampled_max_x, sampled_max_y;
-    logic [6:0] delay_max_x;
+    logic [7:0] delay_max_x;
     
-    // Edge detect in clk domain and latch pclk-side coordinates (which are held stable by cam_capture_UV)
+    //detect edge of vsync
+    logic vsync0,vsync1;
+    always_ff @(posedge clk) begin
+        vsync0 <= vsync;
+        vsync1 <= vsync0;
+    end
+    assign vsync_rise = ~vsync0 & vsync1;
+    
+    
+    // Edge detect in clk domain and latch pclk-side quadrant coordinates (held stable by cam_capture_UV)
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
+            // initialize all sampled 12 regions to invalid sentinel
+            sampled_min_x_x0_y0 <= 10'd641; sampled_max_x_x0_y0 <= 10'd0; sampled_min_y_x0_y0 <= 10'd641; sampled_max_y_x0_y0 <= 10'd0;
+            sampled_min_x_x1_y0 <= 10'd641; sampled_max_x_x1_y0 <= 10'd0; sampled_min_y_x1_y0 <= 10'd641; sampled_max_y_x1_y0 <= 10'd0;
+            sampled_min_x_x2_y0 <= 10'd641; sampled_max_x_x2_y0 <= 10'd0; sampled_min_y_x2_y0 <= 10'd641; sampled_max_y_x2_y0 <= 10'd0;
+            sampled_min_x_x3_y0 <= 10'd641; sampled_max_x_x3_y0 <= 10'd0; sampled_min_y_x3_y0 <= 10'd641; sampled_max_y_x3_y0 <= 10'd0;
+
+            sampled_min_x_x0_y1 <= 10'd641; sampled_max_x_x0_y1 <= 10'd0; sampled_min_y_x0_y1 <= 10'd641; sampled_max_y_x0_y1 <= 10'd0;
+            sampled_min_x_x1_y1 <= 10'd641; sampled_max_x_x1_y1 <= 10'd0; sampled_min_y_x1_y1 <= 10'd641; sampled_max_y_x1_y1 <= 10'd0;
+            sampled_min_x_x2_y1 <= 10'd641; sampled_max_x_x2_y1 <= 10'd0; sampled_min_y_x2_y1 <= 10'd641; sampled_max_y_x2_y1 <= 10'd0;
+            sampled_min_x_x3_y1 <= 10'd641; sampled_max_x_x3_y1 <= 10'd0; sampled_min_y_x3_y1 <= 10'd641; sampled_max_y_x3_y1 <= 10'd0;
+
+            sampled_min_x_x0_y2 <= 10'd641; sampled_max_x_x0_y2 <= 10'd0; sampled_min_y_x0_y2 <= 10'd641; sampled_max_y_x0_y2 <= 10'd0;
+            sampled_min_x_x1_y2 <= 10'd641; sampled_max_x_x1_y2 <= 10'd0; sampled_min_y_x1_y2 <= 10'd641; sampled_max_y_x1_y2 <= 10'd0;
+            sampled_min_x_x2_y2 <= 10'd641; sampled_max_x_x2_y2 <= 10'd0; sampled_min_y_x2_y2 <= 10'd641; sampled_max_y_x2_y2 <= 10'd0;
+            sampled_min_x_x3_y2 <= 10'd641; sampled_max_x_x3_y2 <= 10'd0; sampled_min_y_x3_y2 <= 10'd641; sampled_max_y_x3_y2 <= 10'd0;
+
             sampled_min_x <= 10'd0;
             sampled_min_y <= 10'd641;
             sampled_max_x <= 10'd0;
             sampled_max_y <= 10'd641;
-            frame_ack_clk <= 1'b0;
-            delay_max_x <= 7'b0;
-            endframe_sync_prev <= 1'b0;
+            delay_max_x <= 8'b0;
         end else begin
-            //if (endframe_sync1 && ~endframe_sync_prev) begin
-            if (vsync && delay_max_x == 7'h8F) begin
-                // latch the pclk values (they are stable during endframe)
-                sampled_min_x <= min_x;
-                sampled_min_y <= min_y;
-                sampled_max_x <= max_x;
-                sampled_max_y <= max_y;
-                frame_ack_clk <= 1'b1; // single-cycle ack
-                delay_max_x <= 7'b0;
+            if (vsync_rise && delay_max_x == 8'h4 ) begin
+                // latch each of 12 regions
+                sampled_min_x_x0_y0 <= min_x_x0_y0;
+                sampled_max_x_x0_y0 <= max_x_x0_y0;
+                sampled_min_y_x0_y0 <= min_y_x0_y0;
+                sampled_max_y_x0_y0 <= max_y_x0_y0;
+
+                sampled_min_x_x1_y0 <= min_x_x1_y0;
+                sampled_max_x_x1_y0 <= max_x_x1_y0;
+                sampled_min_y_x1_y0 <= min_y_x1_y0;
+                sampled_max_y_x1_y0 <= max_y_x1_y0;
+
+                sampled_min_x_x2_y0 <= min_x_x2_y0;
+                sampled_max_x_x2_y0 <= max_x_x2_y0;
+                sampled_min_y_x2_y0 <= min_y_x2_y0;
+                sampled_max_y_x2_y0 <= max_y_x2_y0;
+
+                sampled_min_x_x3_y0 <= min_x_x3_y0;
+                sampled_max_x_x3_y0 <= max_x_x3_y0;
+                sampled_min_y_x3_y0 <= min_y_x3_y0;
+                sampled_max_y_x3_y0 <= max_y_x3_y0;
+
+                sampled_min_x_x0_y1 <= min_x_x0_y1;
+                sampled_max_x_x0_y1 <= max_x_x0_y1;
+                sampled_min_y_x0_y1 <= min_y_x0_y1;
+                sampled_max_y_x0_y1 <= max_y_x0_y1;
+
+                sampled_min_x_x1_y1 <= min_x_x1_y1;
+                sampled_max_x_x1_y1 <= max_x_x1_y1;
+                sampled_min_y_x1_y1 <= min_y_x1_y1;
+                sampled_max_y_x1_y1 <= max_y_x1_y1;
+
+                sampled_min_x_x2_y1 <= min_x_x2_y1;
+                sampled_max_x_x2_y1 <= max_x_x2_y1;
+                sampled_min_y_x2_y1 <= min_y_x2_y1;
+                sampled_max_y_x2_y1 <= max_y_x2_y1;
+
+                sampled_min_x_x3_y1 <= min_x_x3_y1;
+                sampled_max_x_x3_y1 <= max_x_x3_y1;
+                sampled_min_y_x3_y1 <= min_y_x3_y1;
+                sampled_max_y_x3_y1 <= max_y_x3_y1;
+
+                sampled_min_x_x0_y2 <= min_x_x0_y2;
+                sampled_max_x_x0_y2 <= max_x_x0_y2;
+                sampled_min_y_x0_y2 <= min_y_x0_y2;
+                sampled_max_y_x0_y2 <= max_y_x0_y2;
+
+                sampled_min_x_x1_y2 <= min_x_x1_y2;
+                sampled_max_x_x1_y2 <= max_x_x1_y2;
+                sampled_min_y_x1_y2 <= min_y_x1_y2;
+                sampled_max_y_x1_y2 <= max_y_x1_y2;
+
+                sampled_min_x_x2_y2 <= min_x_x2_y2;
+                sampled_max_x_x2_y2 <= max_x_x2_y2;
+                sampled_min_y_x2_y2 <= min_y_x2_y2;
+                sampled_max_y_x2_y2 <= max_y_x2_y2;
+
+                sampled_min_x_x3_y2 <= min_x_x3_y2;
+                sampled_max_x_x3_y2 <= max_x_x3_y2;
+                sampled_min_y_x3_y2 <= min_y_x3_y2;
+                sampled_max_y_x3_y2 <= max_y_x3_y2;
+
+                // also keep legacy single sampled box for backward compatibility (optional)
+                sampled_min_x <= 10'd0;
+                sampled_min_y <= 10'd641;
+                sampled_max_x <= 10'd0;
+                sampled_max_y <= 10'd641;
+
+                delay_max_x <= 8'b0;
             end 
-            else if (vsync && delay_max_x != 7'h8F) begin
-                delay_max_x <= delay_max_x + 4'b1;
+            else if (vsync_rise && delay_max_x == 8'h4) begin
+                // duplicate branch preserved from original (no-op)
+                delay_max_x <= 8'b0;
             end
-            
+            else if (vsync_rise && delay_max_x != 8'h4) begin
+                delay_max_x <= delay_max_x + 8'b1;
+            end
             else begin
-                frame_ack_clk <= 1'b0;
+                // nothing
             end
-            endframe_sync_prev <= endframe_sync1;
         end
     end
 
-    // Now update *_new using sampled values
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
-            max_x_new <= 10'd0;
-            max_y_new <= 10'd0;
-            min_x_new <= 10'd641;
-            min_y_new <= 10'd641;
+    // small-blob filter: estimated pixel count threshold (tuneable via sw_i[3:0] if you want)
+    localparam int SMALL_PIXEL_THRESH_DEFAULT = 16;
+    logic [15:0] small_thresh;
+    // make threshold adjustable by switches (low 4 bits), or use default if zero
+    assign small_thresh = (sw_i[14:0] != 15'd0) ? {15'd0, sw_i[14:0]} : SMALL_PIXEL_THRESH_DEFAULT;
+
+    // compute widths/heights and area for each of 12 regions (combinational)
+    logic [10:0] width_x0_y0, height_x0_y0; logic [21:0] area_x0_y0;
+    logic [10:0] width_x1_y0, height_x1_y0; logic [21:0] area_x1_y0;
+    logic [10:0] width_x2_y0, height_x2_y0; logic [21:0] area_x2_y0;
+    logic [10:0] width_x3_y0, height_x3_y0; logic [21:0] area_x3_y0;
+
+    logic [10:0] width_x0_y1, height_x0_y1; logic [21:0] area_x0_y1;
+    logic [10:0] width_x1_y1, height_x1_y1; logic [21:0] area_x1_y1;
+    logic [10:0] width_x2_y1, height_x2_y1; logic [21:0] area_x2_y1;
+    logic [10:0] width_x3_y1, height_x3_y1; logic [21:0] area_x3_y1;
+
+    logic [10:0] width_x0_y2, height_x0_y2; logic [21:0] area_x0_y2;
+    logic [10:0] width_x1_y2, height_x1_y2; logic [21:0] area_x1_y2;
+    logic [10:0] width_x2_y2, height_x2_y2; logic [21:0] area_x2_y2;
+    logic [10:0] width_x3_y2, height_x3_y2; logic [21:0] area_x3_y2;
+
+    always_comb begin
+        // x0_y0
+        if (sampled_min_x_x0_y0 != 10'd641 && sampled_max_x_x0_y0 >= sampled_min_x_x0_y0 &&
+            sampled_min_y_x0_y0 != 10'd641 && sampled_max_y_x0_y0 >= sampled_min_y_x0_y0) begin
+            width_x0_y0  = sampled_max_x_x0_y0 - sampled_min_x_x0_y0 + 11'd1;
+            height_x0_y0 = sampled_max_y_x0_y0 - sampled_min_y_x0_y0 + 11'd1;
+            area_x0_y0   = width_x0_y0 * height_x0_y0;
         end else begin
-            if (sampled_min_x != 10'd641 && sampled_min_y != 10'd641) begin //maybe add a counter here?
-                max_x_new <= sampled_max_x;
-                max_y_new <= sampled_max_y;
-                min_x_new <= sampled_min_x;
-                min_y_new <= sampled_min_y;
-            end else begin
-                max_x_new <= 10'd641;
-                max_y_new <= 10'd641;
-                min_x_new <= 10'd641;
-                min_y_new <= 10'd641;
-            end
+            width_x0_y0 = 11'd0; height_x0_y0 = 11'd0; area_x0_y0 = 22'd0;
+        end
+
+        // x1_y0
+        if (sampled_min_x_x1_y0 != 10'd641 && sampled_max_x_x1_y0 >= sampled_min_x_x1_y0 &&
+            sampled_min_y_x1_y0 != 10'd641 && sampled_max_y_x1_y0 >= sampled_min_y_x1_y0) begin
+            width_x1_y0  = sampled_max_x_x1_y0 - sampled_min_x_x1_y0 + 11'd1;
+            height_x1_y0 = sampled_max_y_x1_y0 - sampled_min_y_x1_y0 + 11'd1;
+            area_x1_y0   = width_x1_y0 * height_x1_y0;
+        end else begin
+            width_x1_y0 = 11'd0; height_x1_y0 = 11'd0; area_x1_y0 = 22'd0;
+        end
+
+        // x2_y0
+        if (sampled_min_x_x2_y0 != 10'd641 && sampled_max_x_x2_y0 >= sampled_min_x_x2_y0 &&
+            sampled_min_y_x2_y0 != 10'd641 && sampled_max_y_x2_y0 >= sampled_min_y_x2_y0) begin
+            width_x2_y0  = sampled_max_x_x2_y0 - sampled_min_x_x2_y0 + 11'd1;
+            height_x2_y0 = sampled_max_y_x2_y0 - sampled_min_y_x2_y0 + 11'd1;
+            area_x2_y0   = width_x2_y0 * height_x2_y0;
+        end else begin
+            width_x2_y0 = 11'd0; height_x2_y0 = 11'd0; area_x2_y0 = 22'd0;
+        end
+
+        // x3_y0
+        if (sampled_min_x_x3_y0 != 10'd641 && sampled_max_x_x3_y0 >= sampled_min_x_x3_y0 &&
+            sampled_min_y_x3_y0 != 10'd641 && sampled_max_y_x3_y0 >= sampled_min_y_x3_y0) begin
+            width_x3_y0  = sampled_max_x_x3_y0 - sampled_min_x_x3_y0 + 11'd1;
+            height_x3_y0 = sampled_max_y_x3_y0 - sampled_min_y_x3_y0 + 11'd1;
+            area_x3_y0   = width_x3_y0 * height_x3_y0;
+        end else begin
+            width_x3_y0 = 11'd0; height_x3_y0 = 11'd0; area_x3_y0 = 22'd0;
+        end
+
+        // x0_y1
+        if (sampled_min_x_x0_y1 != 10'd641 && sampled_max_x_x0_y1 >= sampled_min_x_x0_y1 &&
+            sampled_min_y_x0_y1 != 10'd641 && sampled_max_y_x0_y1 >= sampled_min_y_x0_y1) begin
+            width_x0_y1  = sampled_max_x_x0_y1 - sampled_min_x_x0_y1 + 11'd1;
+            height_x0_y1 = sampled_max_y_x0_y1 - sampled_min_y_x0_y1 + 11'd1;
+            area_x0_y1   = width_x0_y1 * height_x0_y1;
+        end else begin
+            width_x0_y1 = 11'd0; height_x0_y1 = 11'd0; area_x0_y1 = 22'd0;
+        end
+
+        // x1_y1
+        if (sampled_min_x_x1_y1 != 10'd641 && sampled_max_x_x1_y1 >= sampled_min_x_x1_y1 &&
+            sampled_min_y_x1_y1 != 10'd641 && sampled_max_y_x1_y1 >= sampled_min_y_x1_y1) begin
+            width_x1_y1  = sampled_max_x_x1_y1 - sampled_min_x_x1_y1 + 11'd1;
+            height_x1_y1 = sampled_max_y_x1_y1 - sampled_min_y_x1_y1 + 11'd1;
+            area_x1_y1   = width_x1_y1 * height_x1_y1;
+        end else begin
+            width_x1_y1 = 11'd0; height_x1_y1 = 11'd0; area_x1_y1 = 22'd0;
+        end
+
+        // x2_y1
+        if (sampled_min_x_x2_y1 != 10'd641 && sampled_max_x_x2_y1 >= sampled_min_x_x2_y1 &&
+            sampled_min_y_x2_y1 != 10'd641 && sampled_max_y_x2_y1 >= sampled_min_y_x2_y1) begin
+            width_x2_y1  = sampled_max_x_x2_y1 - sampled_min_x_x2_y1 + 11'd1;
+            height_x2_y1 = sampled_max_y_x2_y1 - sampled_min_y_x2_y1 + 11'd1;
+            area_x2_y1   = width_x2_y1 * height_x2_y1;
+        end else begin
+            width_x2_y1 = 11'd0; height_x2_y1 = 11'd0; area_x2_y1 = 22'd0;
+        end
+
+        // x3_y1
+        if (sampled_min_x_x3_y1 != 10'd641 && sampled_max_x_x3_y1 >= sampled_min_x_x3_y1 &&
+            sampled_min_y_x3_y1 != 10'd641 && sampled_max_y_x3_y1 >= sampled_min_y_x3_y1) begin
+            width_x3_y1  = sampled_max_x_x3_y1 - sampled_min_x_x3_y1 + 11'd1;
+            height_x3_y1 = sampled_max_y_x3_y1 - sampled_min_y_x3_y1 + 11'd1;
+            area_x3_y1   = width_x3_y1 * height_x3_y1;
+        end else begin
+            width_x3_y1 = 11'd0; height_x3_y1 = 11'd0; area_x3_y1 = 22'd0;
+        end
+
+        // x0_y2
+        if (sampled_min_x_x0_y2 != 10'd641 && sampled_max_x_x0_y2 >= sampled_min_x_x0_y2 &&
+            sampled_min_y_x0_y2 != 10'd641 && sampled_max_y_x0_y2 >= sampled_min_y_x0_y2) begin
+            width_x0_y2  = sampled_max_x_x0_y2 - sampled_min_x_x0_y2 + 11'd1;
+            height_x0_y2 = sampled_max_y_x0_y2 - sampled_min_y_x0_y2 + 11'd1;
+            area_x0_y2   = width_x0_y2 * height_x0_y2;
+        end else begin
+            width_x0_y2 = 11'd0; height_x0_y2 = 11'd0; area_x0_y2 = 22'd0;
+        end
+
+        // x1_y2
+        if (sampled_min_x_x1_y2 != 10'd641 && sampled_max_x_x1_y2 >= sampled_min_x_x1_y2 &&
+            sampled_min_y_x1_y2 != 10'd641 && sampled_max_y_x1_y2 >= sampled_min_y_x1_y2) begin
+            width_x1_y2  = sampled_max_x_x1_y2 - sampled_min_x_x1_y2 + 11'd1;
+            height_x1_y2 = sampled_max_y_x1_y2 - sampled_min_y_x1_y2 + 11'd1;
+            area_x1_y2   = width_x1_y2 * height_x1_y2;
+        end else begin
+            width_x1_y2 = 11'd0; height_x1_y2 = 11'd0; area_x1_y2 = 22'd0;
+        end
+
+        // x2_y2
+        if (sampled_min_x_x2_y2 != 10'd641 && sampled_max_x_x2_y2 >= sampled_min_x_x2_y2 &&
+            sampled_min_y_x2_y2 != 10'd641 && sampled_max_y_x2_y2 >= sampled_min_y_x2_y2) begin
+            width_x2_y2  = sampled_max_x_x2_y2 - sampled_min_x_x2_y2 + 11'd1;
+            height_x2_y2 = sampled_max_y_x2_y2 - sampled_min_y_x2_y2 + 11'd1;
+            area_x2_y2   = width_x2_y2 * height_x2_y2;
+        end else begin
+            width_x2_y2 = 11'd0; height_x2_y2 = 11'd0; area_x2_y2 = 22'd0;
+        end
+
+        // x3_y2
+        if (sampled_min_x_x3_y2 != 10'd641 && sampled_max_x_x3_y2 >= sampled_min_x_x3_y2 &&
+            sampled_min_y_x3_y2 != 10'd641 && sampled_max_y_x3_y2 >= sampled_min_y_x3_y2) begin
+            width_x3_y2  = sampled_max_x_x3_y2 - sampled_min_x_x3_y2 + 11'd1;
+            height_x3_y2 = sampled_max_y_x3_y2 - sampled_min_y_x3_y2 + 11'd1;
+            area_x3_y2   = width_x3_y2 * height_x3_y2;
+        end else begin
+            width_x3_y2 = 11'd0; height_x3_y2 = 11'd0; area_x3_y2 = 22'd0;
         end
     end
-    
-        always_comb begin
-        if (drawY == min_y_new && drawX <= max_x_new && drawX >= min_x_new) begin
-            red_block = 7'b0; 
-            dout_red = 7'b1111111;
-        end 
-        else if (drawY == max_y_new && drawX <= max_x_new && drawX >= min_x_new) begin
-            red_block = 7'b0; 
-            dout_red = 7'b1111111;
+
+    // area-valid flags (only true if box exists AND area >= threshold)
+    logic valid_x0_y0_area, valid_x1_y0_area, valid_x2_y0_area, valid_x3_y0_area;
+    logic valid_x0_y1_area, valid_x1_y1_area, valid_x2_y1_area, valid_x3_y1_area;
+    logic valid_x0_y2_area, valid_x1_y2_area, valid_x2_y2_area, valid_x3_y2_area;
+
+    assign valid_x0_y0_area = (area_x0_y0 >= small_thresh);
+    assign valid_x1_y0_area = (area_x1_y0 >= small_thresh);
+    assign valid_x2_y0_area = (area_x2_y0 >= small_thresh);
+    assign valid_x3_y0_area = (area_x3_y0 >= small_thresh);
+
+    assign valid_x0_y1_area = (area_x0_y1 >= small_thresh);
+    assign valid_x1_y1_area = (area_x1_y1 >= small_thresh);
+    assign valid_x2_y1_area = (area_x2_y1 >= small_thresh);
+    assign valid_x3_y1_area = (area_x3_y1 >= small_thresh);
+
+    assign valid_x0_y2_area = (area_x0_y2 >= small_thresh);
+    assign valid_x1_y2_area = (area_x1_y2 >= small_thresh);
+    assign valid_x2_y2_area = (area_x2_y2 >= small_thresh);
+    assign valid_x3_y2_area = (area_x3_y2 >= small_thresh);
+
+    // Drawing logic: OR of 12 region boxes (area filtered)
+    always_comb begin
+        red_block = 7'b1111111;
+        dout_red = 7'b0;
+
+        // For each region, if area-valid and boundary matches draw a red pixel.
+        // Use independent ifs so multiple regions may OR together; result is same color.
+        if ( valid_x0_y0_area &&
+            ( (drawY == sampled_min_y_x0_y0 && drawX <= sampled_max_x_x0_y0 && drawX >= sampled_min_x_x0_y0) ||
+              (drawY == sampled_max_y_x0_y0 && drawX <= sampled_max_x_x0_y0 && drawX >= sampled_min_x_x0_y0) ||
+              (drawX == sampled_min_x_x0_y0 && drawY <= sampled_max_y_x0_y0 && drawY >= sampled_min_y_x0_y0) ||
+              (drawX == sampled_max_x_x0_y0 && drawY <= sampled_max_y_x0_y0 && drawY >= sampled_min_y_x0_y0) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
         end
-        else if (drawX == min_x_new && drawY <= max_y_new && drawY >= min_y_new) begin
-            red_block = 7'b0; 
-            dout_red = 7'b1111111;            
+
+        if ( valid_x1_y0_area &&
+            ( (drawY == sampled_min_y_x1_y0 && drawX <= sampled_max_x_x1_y0 && drawX >= sampled_min_x_x1_y0) ||
+              (drawY == sampled_max_y_x1_y0 && drawX <= sampled_max_x_x1_y0 && drawX >= sampled_min_x_x1_y0) ||
+              (drawX == sampled_min_x_x1_y0 && drawY <= sampled_max_y_x1_y0 && drawY >= sampled_min_y_x1_y0) ||
+              (drawX == sampled_max_x_x1_y0 && drawY <= sampled_max_y_x1_y0 && drawY >= sampled_min_y_x1_y0) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
         end
-        else if (drawX == max_x_new && drawY <= max_y_new && drawY >= min_y_new) begin
-            red_block = 7'b0; 
-            dout_red = 7'b1111111;            
+
+        if ( valid_x2_y0_area &&
+            ( (drawY == sampled_min_y_x2_y0 && drawX <= sampled_max_x_x2_y0 && drawX >= sampled_min_x_x2_y0) ||
+              (drawY == sampled_max_y_x2_y0 && drawX <= sampled_max_x_x2_y0 && drawX >= sampled_min_x_x2_y0) ||
+              (drawX == sampled_min_x_x2_y0 && drawY <= sampled_max_y_x2_y0 && drawY >= sampled_min_y_x2_y0) ||
+              (drawX == sampled_max_x_x2_y0 && drawY <= sampled_max_y_x2_y0 && drawY >= sampled_min_y_x2_y0) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
         end
-        else begin
-            red_block = 7'b1111111;
-            dout_red = 7'b0;
-        end       
+
+        if ( valid_x3_y0_area &&
+            ( (drawY == sampled_min_y_x3_y0 && drawX <= sampled_max_x_x3_y0 && drawX >= sampled_min_x_x3_y0) ||
+              (drawY == sampled_max_y_x3_y0 && drawX <= sampled_max_x_x3_y0 && drawX >= sampled_min_x_x3_y0) ||
+              (drawX == sampled_min_x_x3_y0 && drawY <= sampled_max_y_x3_y0 && drawY >= sampled_min_y_x3_y0) ||
+              (drawX == sampled_max_x_x3_y0 && drawY <= sampled_max_y_x3_y0 && drawY >= sampled_min_y_x3_y0) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
+        end
+
+        // Row1
+        if ( valid_x0_y1_area &&
+            ( (drawY == sampled_min_y_x0_y1 && drawX <= sampled_max_x_x0_y1 && drawX >= sampled_min_x_x0_y1) ||
+              (drawY == sampled_max_y_x0_y1 && drawX <= sampled_max_x_x0_y1 && drawX >= sampled_min_x_x0_y1) ||
+              (drawX == sampled_min_x_x0_y1 && drawY <= sampled_max_y_x0_y1 && drawY >= sampled_min_y_x0_y1) ||
+              (drawX == sampled_max_x_x0_y1 && drawY <= sampled_max_y_x0_y1 && drawY >= sampled_min_y_x0_y1) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
+        end
+
+        if ( valid_x1_y1_area &&
+            ( (drawY == sampled_min_y_x1_y1 && drawX <= sampled_max_x_x1_y1 && drawX >= sampled_min_x_x1_y1) ||
+              (drawY == sampled_max_y_x1_y1 && drawX <= sampled_max_x_x1_y1 && drawX >= sampled_min_x_x1_y1) ||
+              (drawX == sampled_min_x_x1_y1 && drawY <= sampled_max_y_x1_y1 && drawY >= sampled_min_y_x1_y1) ||
+              (drawX == sampled_max_x_x1_y1 && drawY <= sampled_max_y_x1_y1 && drawY >= sampled_min_y_x1_y1) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
+        end
+
+        if ( valid_x2_y1_area &&
+            ( (drawY == sampled_min_y_x2_y1 && drawX <= sampled_max_x_x2_y1 && drawX >= sampled_min_x_x2_y1) ||
+              (drawY == sampled_max_y_x2_y1 && drawX <= sampled_max_x_x2_y1 && drawX >= sampled_min_x_x2_y1) ||
+              (drawX == sampled_min_x_x2_y1 && drawY <= sampled_max_y_x2_y1 && drawY >= sampled_min_y_x2_y1) ||
+              (drawX == sampled_max_x_x2_y1 && drawY <= sampled_max_y_x2_y1 && drawY >= sampled_min_y_x2_y1) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
+        end
+
+        if ( valid_x3_y1_area &&
+            ( (drawY == sampled_min_y_x3_y1 && drawX <= sampled_max_x_x3_y1 && drawX >= sampled_min_x_x3_y1) ||
+              (drawY == sampled_max_y_x3_y1 && drawX <= sampled_max_x_x3_y1 && drawX >= sampled_min_x_x3_y1) ||
+              (drawX == sampled_min_x_x3_y1 && drawY <= sampled_max_y_x3_y1 && drawY >= sampled_min_y_x3_y1) ||
+              (drawX == sampled_max_x_x3_y1 && drawY <= sampled_max_y_x3_y1 && drawY >= sampled_min_y_x3_y1) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
+        end
+
+        // Row2
+        if ( valid_x0_y2_area &&
+            ( (drawY == sampled_min_y_x0_y2 && drawX <= sampled_max_x_x0_y2 && drawX >= sampled_min_x_x0_y2) ||
+              (drawY == sampled_max_y_x0_y2 && drawX <= sampled_max_x_x0_y2 && drawX >= sampled_min_x_x0_y2) ||
+              (drawX == sampled_min_x_x0_y2 && drawY <= sampled_max_y_x0_y2 && drawY >= sampled_min_y_x0_y2) ||
+              (drawX == sampled_max_x_x0_y2 && drawY <= sampled_max_y_x0_y2 && drawY >= sampled_min_y_x0_y2) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
+        end
+
+        if ( valid_x1_y2_area &&
+            ( (drawY == sampled_min_y_x1_y2 && drawX <= sampled_max_x_x1_y2 && drawX >= sampled_min_x_x1_y2) ||
+              (drawY == sampled_max_y_x1_y2 && drawX <= sampled_max_x_x1_y2 && drawX >= sampled_min_x_x1_y2) ||
+              (drawX == sampled_min_x_x1_y2 && drawY <= sampled_max_y_x1_y2 && drawY >= sampled_min_y_x1_y2) ||
+              (drawX == sampled_max_x_x1_y2 && drawY <= sampled_max_y_x1_y2 && drawY >= sampled_min_y_x1_y2) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
+        end
+
+        if ( valid_x2_y2_area &&
+            ( (drawY == sampled_min_y_x2_y2 && drawX <= sampled_max_x_x2_y2 && drawX >= sampled_min_x_x2_y2) ||
+              (drawY == sampled_max_y_x2_y2 && drawX <= sampled_max_x_x2_y2 && drawX >= sampled_min_x_x2_y2) ||
+              (drawX == sampled_min_x_x2_y2 && drawY <= sampled_max_y_x2_y2 && drawY >= sampled_min_y_x2_y2) ||
+              (drawX == sampled_max_x_x2_y2 && drawY <= sampled_max_y_x2_y2 && drawY >= sampled_min_y_x2_y2) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
+        end
+
+        if ( valid_x3_y2_area &&
+            ( (drawY == sampled_min_y_x3_y2 && drawX <= sampled_max_x_x3_y2 && drawX >= sampled_min_x_x3_y2) ||
+              (drawY == sampled_max_y_x3_y2 && drawX <= sampled_max_x_x3_y2 && drawX >= sampled_min_x_x3_y2) ||
+              (drawX == sampled_min_x_x3_y2 && drawY <= sampled_max_y_x3_y2 && drawY >= sampled_min_y_x3_y2) ||
+              (drawX == sampled_max_x_x3_y2 && drawY <= sampled_max_y_x3_y2 && drawY >= sampled_min_y_x3_y2) ) ) begin
+            red_block = (sw_i[15]) ? 7'b0: 7'b1111111;
+            dout_red = sw_i[15] ? 7'b1111111: 7'b0;
+        end
     end
 
     
@@ -294,4 +711,3 @@ module camera_top_level(
     
 
 endmodule
-
