@@ -114,3 +114,26 @@ set_property -dict {PACKAGE_PIN A7 IOSTANDARD LVCMOS33} [get_ports {sw_i[13]}]
 set_property -dict {PACKAGE_PIN B7 IOSTANDARD LVCMOS33} [get_ports {sw_i[14]}]
 set_property -dict {PACKAGE_PIN A8 IOSTANDARD LVCMOS33} [get_ports {sw_i[15]}]
 
+<<<<<<< HEAD
+=======
+set_property -dict {PACKAGE_PIN J10 IOSTANDARD LVCMOS12} [get_ports VP]
+set_property -dict {PACKAGE_PIN K9 IOSTANDARD LVCMOS12} [get_ports VN]
+
+#LEDS
+set_property PACKAGE_PIN C13 [get_ports {B_out[0]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {B_out[0]}]
+set_property PACKAGE_PIN C14 [get_ports {B_out[1]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {B_out[1]}]
+set_property PACKAGE_PIN D14 [get_ports {B_out[2]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {B_out[2]}]
+set_property PACKAGE_PIN D15 [get_ports {B_out[3]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {B_out[3]}]
+set_property PACKAGE_PIN D16 [get_ports {B_out[4]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {B_out[4]}]
+set_property PACKAGE_PIN F18 [get_ports {B_out[5]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {B_out[5]}]
+set_property PACKAGE_PIN E17 [get_ports {B_out[6]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {B_out[6]}]
+
+
+>>>>>>> 1d234d5 (Brightness Dial)

@@ -23,13 +23,18 @@
 module camera_top_level(
         input clk,      //100MHz Clock from FPGA
         //CAMERA INPUTS
-        input pclk,     //24MHz Clock from Camera
-        input reset,
-        input cam_href,
-        input cam_vsync,
-        input [7:0] cam_data,
-        input start_fsm,
-        input pwdn,
+        input logic pclk,     //24MHz Clock from Camera
+        input logic reset,
+        input logic cam_href,
+        input logic cam_vsync,
+        input logic [7:0] cam_data,
+        input logic start_fsm,
+        input logic pwdn,
+        
+        
+        input logic toggle_edge,
+        input logic toggle_skin,
+        input  logic [15:0] sw_i,
         
         
         input logic toggle_edge,
@@ -38,10 +43,16 @@ module camera_top_level(
         
 
         //CAMERA OUTPUTS
-        inout sda,
-        output xclk,
-        output scl,
+        inout logic sda,
+        output logic xclk,
+        output logic scl,
         
+        //Potentiometer
+        input logic VP,
+        input logic VN,
+        
+        //LEDS
+        output logic [6:0] B_out,
 
         //HDMI
         output logic hdmi_tmds_clk_n,
@@ -67,6 +78,7 @@ module camera_top_level(
     logic pixel_valid, pixel_valid_UV;
     logic hsync, vsync, vde;
     logic config_done;
+    logic [6:0] pot_out;
 //    logic start_fsm_debounced, reset_debounced;
     logic [6:0] doutb;
     logic [6:0] dina;
@@ -111,7 +123,19 @@ module camera_top_level(
     assign cam_pixel_idx = toggle_edge ? (y_coord_UV*640 + x_coord_UV):(y_coord * 640 + x_coord);
     assign vga_pixel_idx = drawY * 640 + drawX;
     //assign dina = pixel_data[7:1];
+<<<<<<< HEAD
     assign dina = toggle_edge ? ((toggle_skin ? skin_valid_2:skin_valid) ? 7'h0: 7'h3F) : pixel_data[7:1]; 
+=======
+    
+    logic [13:0] mult;        // product is up to 14 bits
+    logic [6:0] bright_pixel; // final 7-bit pixel
+
+    assign mult = pixel_data[7:1] * pot_out;
+    
+    // fixed-point scaling: divide by 128 → shift right by 7
+    assign bright_pixel = mult[13:7];
+    assign dina = toggle_edge ? ((toggle_skin ? skin_valid_2:skin_valid) ? 7'h0: 7'h3F) : bright_pixel;
+>>>>>>> 1d234d5 (Brightness Dial)
     //assign dina = (skin_valid) ? 7'h3F: 7'b0;
     
 //    assign min_x_new = 10'd641;
@@ -121,6 +145,7 @@ module camera_top_level(
     
     logic [6:0] red_block, dout_red;
     
+    assign B_out = pot_out;
     
         
     clk_wiz_0 clk_wiz (
@@ -287,7 +312,17 @@ module camera_top_level(
         .pixel_valid(pixel_valid_UV)
     );
     
+<<<<<<< HEAD
     
+=======
+    adc analog_to_digital(
+    .clk(clk),
+    .reset(reset),
+    .VP(VP),
+    .VN(VN),
+    .pot_out(pot_out)
+    );
+>>>>>>> 1d234d5 (Brightness Dial)
    
     logic [9:0] sampled_min_x, sampled_min_y, sampled_max_x, sampled_max_y;
     logic [7:0] delay_max_x;
@@ -710,4 +745,8 @@ module camera_top_level(
     );
     
 
+<<<<<<< HEAD
 endmodule
+=======
+endmodule
+>>>>>>> 1d234d5 (Brightness Dial)
