@@ -123,10 +123,7 @@ module camera_top_level(
     assign cam_pixel_idx = toggle_edge ? (y_coord_UV*640 + x_coord_UV):(y_coord * 640 + x_coord);
     assign vga_pixel_idx = drawY * 640 + drawX;
     //assign dina = pixel_data[7:1];
-<<<<<<< HEAD
-    assign dina = toggle_edge ? ((toggle_skin ? skin_valid_2:skin_valid) ? 7'h0: 7'h3F) : pixel_data[7:1]; 
-=======
-    
+ 
     logic [13:0] mult;        // product is up to 14 bits
     logic [6:0] bright_pixel; // final 7-bit pixel
 
@@ -135,7 +132,6 @@ module camera_top_level(
     // fixed-point scaling: divide by 128 → shift right by 7
     assign bright_pixel = mult[13:7];
     assign dina = toggle_edge ? ((toggle_skin ? skin_valid_2:skin_valid) ? 7'h0: 7'h3F) : bright_pixel;
->>>>>>> 1d234d5 (Brightness Dial)
     //assign dina = (skin_valid) ? 7'h3F: 7'b0;
     
 //    assign min_x_new = 10'd641;
