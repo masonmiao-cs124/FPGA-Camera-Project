@@ -1,5 +1,7 @@
 # FPGA Real-Time Camera Pipeline on Urbana Spartan-7
 
+By: Mason Miao, Swarup Majumder.
+
 This project implements a fully hardware-driven real-time camera pipeline on the **Urbana Spartan-7 FPGA board**, using an **OV7670 camera sensor**, on-chip BRAM buffering, RTL pixel processing, and **HDMI output**.  
 
 The system runs entirely in **SystemVerilog**, processes one pixel per clock, and requires **no SOC**.
@@ -16,7 +18,6 @@ The system runs entirely in **SystemVerilog**, processes one pixel per clock, an
 
 ## Overview
 
-By: Swarup Majumder, Mason Miao
 This design receives pixel data from an **OV7670 CMOS camera**, configures the sensor via I2C/SCCB, captures incoming frames using BRAM, optionally applies image-processing functions (brightness, edge detection, skin detection), and outputs the processed image over **HDMI** in real time.
 
 Features include:
