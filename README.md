@@ -16,6 +16,7 @@ The system runs entirely in **SystemVerilog**, processes one pixel per clock, an
 
 ## Overview
 
+By: Swarup Majumder, Mason Miao
 This design receives pixel data from an **OV7670 CMOS camera**, configures the sensor via I2C/SCCB, captures incoming frames using BRAM, optionally applies image-processing functions (brightness, edge detection, skin detection), and outputs the processed image over **HDMI** in real time.
 
 Features include:
