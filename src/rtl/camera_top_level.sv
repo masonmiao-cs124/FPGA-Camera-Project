@@ -308,9 +308,6 @@ module camera_top_level(
         .pixel_valid(pixel_valid_UV)
     );
     
-<<<<<<< HEAD
-    
-=======
     adc analog_to_digital(
     .clk(clk),
     .reset(reset),
@@ -318,7 +315,7 @@ module camera_top_level(
     .VN(VN),
     .pot_out(pot_out)
     );
->>>>>>> 1d234d5 (Brightness Dial)
+
    
     logic [9:0] sampled_min_x, sampled_min_y, sampled_max_x, sampled_max_y;
     logic [7:0] delay_max_x;
