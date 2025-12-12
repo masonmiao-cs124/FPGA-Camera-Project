@@ -745,8 +745,3 @@ module camera_top_level(
     );
     
 
-<<<<<<< HEAD
-endmodule
-=======
-endmodule
->>>>>>> 1d234d5 (Brightness Dial)
